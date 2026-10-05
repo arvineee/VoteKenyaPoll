@@ -12,7 +12,7 @@ from decimal import Decimal, InvalidOperation
 from flask import current_app
 
 import models
-from config import Config as cfg
+from appconfig import Config as cfg
 
 
 class PaymentError(Exception):
@@ -39,6 +39,31 @@ def config_problem():
     if not cfg.INTASEND_TEST_MODE and not ("_live_" in sec and "_live_" in pub):
         return "INTASEND_TEST_MODE is false but the keys are sandbox keys. Use live keys, or set INTASEND_TEST_MODE=true."
     return None
+
+
+def test_connection():
+    """Ask IntaSend to create one unpaid KES checkout, to prove the keys and mode work together.
+    Returns (ok, message). No money moves; an unpaid checkout just shows in your IntaSend dashboard."""
+    host = "sandbox.intasend.com (test mode)" if cfg.INTASEND_TEST_MODE else "payment.intasend.com (live)"
+    try:
+        resp = _service().collect.checkout(
+            email="keycheck@example.com", amount=cfg.VOTE_PRICE_KES, currency=cfg.PAYMENT_CURRENCY,
+            comment="Key check", redirect_url=cfg.SITE_URL, api_ref="KEYCHECK",
+            first_name="Key", last_name="Check")
+    except PaymentError as exc:
+        return False, str(exc)
+    except Exception as exc:
+        text = str(exc)
+        if "authentication_failed" in text or "Unauthorized" in type(exc).__name__:
+            other = "payment.intasend.com (live)" if cfg.INTASEND_TEST_MODE else "sandbox.intasend.com (test)"
+            return False, (f"{host} rejected your PUBLISHABLE key. Creating a checkout uses only the "
+                           f"publishable key, so check INTASEND_PUBLISHABLE_KEY and the mode. "
+                           f"The key is probably from the other environment ({other}); sandbox and live "
+                           f"keys are not interchangeable. Fix INTASEND_TEST_MODE or paste the matching key.")
+        return False, f"Could not reach {host}: {text[:300]}"
+    if (resp or {}).get("url"):
+        return True, f"{host} accepted your keys and created a checkout."
+    return False, f"{host} answered without a checkout URL: {resp}"
 
 
 def normalize_phone(raw):

@@ -9,7 +9,7 @@ from werkzeug.utils import secure_filename
 
 import payments, security, seo
 from schema import upgrade_schema
-from config import Config
+from appconfig import Config
 from models import db, Candidate, Payment, create_vote, get_by_ref
 
 app = Flask(__name__)
@@ -328,7 +328,12 @@ def check_payments():
     print("Publishable key starts with:", (Config.INTASEND_PUBLISHABLE_KEY or "-")[:16])
     print("Site URL:", Config.SITE_URL)
     print("Webhook challenge set:", bool(Config.INTASEND_WEBHOOK_CHALLENGE))
-    print("Problem:", payments.config_problem() or "none found")
+    problem = payments.config_problem()
+    print("Problem:", problem or "none found")
+    if not problem:
+        print("Contacting IntaSend...")
+        ok, message = payments.test_connection()
+        print(("OK: " if ok else "FAILED: ") + message)
 
 
 @app.cli.command("init-db")
@@ -367,5 +372,5 @@ with app.app_context():
     upgrade_schema(db)
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=False)
 
