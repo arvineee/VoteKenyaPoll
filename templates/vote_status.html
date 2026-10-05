@@ -1,0 +1,28 @@
+<!doctype html><html lang="en"><head>
+{% set page_title = "Your vote · " ~ site.name %}{% set page_robots = "noindex, nofollow, noarchive" %}
+{% include "_head.html" %}
+<style nonce="{{ csp_nonce }}">
+:root{--paper:#F7F5F0;--ink:#12261D;--green:#0B5D3B;--red:#B3261E;--line:#DAD6CB;--muted:#5C6B63}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 Inter,system-ui,sans-serif}
+.logo{display:block;margin:0 auto 12px}
+.box{max-width:480px;margin:12vh auto;background:#fff;border:1px solid var(--line);border-top:6px solid var(--green);border-radius:10px;padding:28px}
+h1{font:800 28px 'Bricolage Grotesque';margin:0 0 8px}p{color:var(--muted)}
+a.btn{display:inline-block;background:var(--green);color:#fff;text-decoration:none;font-weight:600;padding:11px 18px;border-radius:8px;margin-top:8px}
+[data-state]{display:none}.bad h1{color:var(--red)}
+</style></head><body>
+<div class="box" id="payStatus" data-url="{{ url_for('vote_status', ref=p.ref) }}" data-initial="{{ p.state }}" role="status">
+  <div data-state="pending"><img class="logo" src="{{ url_for('static', filename='logo-mark.svg') }}" alt="" width="48" height="48"><h1>Confirming your payment…</h1><p>This usually takes a few seconds. Keep this page open.</p>
+    <p data-state-slow style="display:none">Taking longer than usual. If money left your account, your vote will still be counted once IntaSend confirms it.</p></div>
+  <div data-state="paid"><h1>Vote counted. Thank you!</h1><p>Your vote for {{ cand.name }} has been recorded. Reference {{ p.ref }}.</p><a class="btn" href="{{ url_for('index') }}">See the results</a></div>
+  <div data-state="failed" class="bad"><h1>Payment did not go through</h1><p>You were not charged for a vote. You can try again.</p><a class="btn" href="{{ url_for('index') }}">Back to the poll</a></div>
+  <div data-state="review" class="bad"><h1>We are checking your payment</h1><p>The amount received looked different from the vote price. We will review it. Reference {{ p.ref }}.</p><a class="btn" href="{{ url_for('index') }}">Back to the poll</a></div>
+</div>
+<script nonce="{{ csp_nonce }}">
+(function(){var root=document.getElementById('payStatus'),tries=0,MAX=60;
+function show(s){root.querySelectorAll('[data-state]').forEach(function(el){el.style.display=el.dataset.state===s?'block':'none'})}
+function poll(){fetch(root.dataset.url,{headers:{Accept:'application/json'}}).then(function(r){return r.json()}).then(function(d){
+  show(d.status);if(d.status!=='pending')return;
+  if(++tries<MAX){setTimeout(poll,3000);return}
+  var slow=root.querySelector('[data-state-slow]');if(slow)slow.style.display='block'}).catch(function(){if(++tries<MAX)setTimeout(poll,5000)})}
+show(root.dataset.initial);if(root.dataset.initial==='pending')poll();})();
+</script></body></html>

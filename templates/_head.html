@@ -1,0 +1,38 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+{%- set _title = page_title|default(site.title) %}
+{%- set _desc = page_desc|default(site.description) %}
+{%- set _robots = page_robots|default('index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1') %}
+{%- set _url = site.url ~ (page_path|default(request.path)) %}
+<title>{{ _title }}</title>
+<meta name="description" content="{{ _desc }}">
+<meta name="robots" content="{{ _robots }}">
+<link rel="canonical" href="{{ _url }}">
+<meta name="author" content="{{ site.name }}">
+<meta name="theme-color" content="#0B5D3B">
+<meta name="color-scheme" content="light">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="format-detection" content="telephone=no">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="{{ site.name }}">
+<meta property="og:locale" content="en_KE">
+<meta property="og:title" content="{{ _title }}">
+<meta property="og:description" content="{{ _desc }}">
+<meta property="og:url" content="{{ _url }}">
+<meta property="og:image" content="{{ site.og_image }}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="{{ site.name }}: who is your favourite presidential candidate?">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{ _title }}">
+<meta name="twitter:description" content="{{ _desc }}">
+<meta name="twitter:image" content="{{ site.og_image }}">
+{% if site.twitter %}<meta name="twitter:site" content="{{ site.twitter }}">{% endif %}
+<link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+<link rel="icon" href="{{ url_for('static', filename='favicon-32.png') }}" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
+<link rel="manifest" href="/site.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+{% if schema %}<script type="application/ld+json">{{ schema|tojson }}</script>{% endif %}

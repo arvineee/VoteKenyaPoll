@@ -5,7 +5,7 @@
 <td>{% if c.photo %}<img class="av" src="{{ photo_src(c) }}" alt="">{% else %}<div class="av">{{ c.name[:1] }}</div>{% endif %}</td>
 <td>{{ c.name }}<br><small>{{ c.slogan }}</small></td><td>{{ c.party }}</td><td>{{ 'Visible' if c.active else 'Hidden' }}</td>
 <td class="row"><a class="btn ghost" href="{{ url_for('admin_candidate_edit', cid=c.id) }}">Edit</a>
-<form method="post" action="{{ url_for('admin_candidate_delete', cid=c.id) }}" onsubmit="return confirm('Remove {{ c.name }}?')" style="margin:0">
+<form method="post" action="{{ url_for('admin_candidate_delete', cid=c.id) }}" data-confirm="Remove {{ c.name }}?" style="margin:0">
 <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="danger">Remove</button></form></td></tr>
 {% else %}<tr><td colspan="5">No candidates yet. Add the first one below.</td></tr>{% endfor %}</table></div>
 

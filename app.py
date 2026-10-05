@@ -1,68 +1,30 @@
 import os, re, io, csv, uuid, hmac, secrets, time
-from functools import wraps
 from datetime import datetime
-from dotenv import load_dotenv
+from functools import wraps
+
 from flask import (Flask, jsonify, render_template, request, abort, url_for,
                    session, redirect, flash, Response)
-from werkzeug.utils import secure_filename
-from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import func
-from intasend import APIService
+from werkzeug.utils import secure_filename
 
-load_dotenv()
+import payments, security, seo
+from config import Config
+from models import db, Candidate, Payment, create_vote, get_by_ref
+
 app = Flask(__name__)
-app.config.update(
-    SECRET_KEY=os.getenv("SECRET_KEY", "dev"),
-    SQLALCHEMY_DATABASE_URI=os.getenv("DATABASE_URL", "sqlite:///poll.db"),
-    MAX_CONTENT_LENGTH=3 * 1024 * 1024,
-    SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE="Lax",
-)
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
+app.config.from_object(Config)
+db.init_app(app)
+if Config.TRUST_PROXY:
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+security.register(app)       # must come first: it creates the per-request CSP nonce
+seo.register(app)
+
+ADMIN_PASSWORD = Config.ADMIN_PASSWORD
+PRICE = Config.VOTE_PRICE_KES
 UPLOAD_DIR = os.path.join(app.root_path, "static", "candidates")
 ALLOWED_EXT = {"png", "jpg", "jpeg", "webp"}
-db = SQLAlchemy(app)
-
-PRICE = int(os.getenv("VOTE_PRICE_KES", 10))
-CHALLENGE = os.getenv("INTASEND_WEBHOOK_CHALLENGE", "")
-
-
-def intasend():
-    return APIService(
-        token=os.getenv("INTASEND_TOKEN"),
-        publishable_key=os.getenv("INTASEND_PUBLISHABLE_KEY"),
-        test=os.getenv("INTASEND_TEST", "true").lower() == "true",
-    )
-
-
-class Candidate(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(120), nullable=False)
-    party = db.Column(db.String(120), default="")
-    slogan = db.Column(db.String(200), default="")
-    photo = db.Column(db.String(300), default="")  # filename in static/candidates/ or a full https URL
-    party_color = db.Column(db.String(9), default="#0B5D3B")
-    active = db.Column(db.Boolean, default=True)
-
-
-class Payment(db.Model):
-    """One row per vote attempt. A vote counts only when state == COMPLETE."""
-    id = db.Column(db.Integer, primary_key=True)
-    invoice_id = db.Column(db.String(64), unique=True, index=True)
-    candidate_id = db.Column(db.Integer, db.ForeignKey("candidate.id"), nullable=False)
-    phone = db.Column(db.String(15))
-    amount = db.Column(db.Integer, default=PRICE)
-    state = db.Column(db.String(20), default="PENDING")
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-
-def normalize_phone(raw):
-    p = re.sub(r"\D", "", raw or "")
-    if p.startswith("0") and len(p) == 10:
-        p = "254" + p[1:]
-    elif len(p) == 9 and p[0] in "17":
-        p = "254" + p
-    return p if re.fullmatch(r"254[17]\d{8}", p) else None
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 def photo_src(c):
@@ -76,7 +38,7 @@ def photo_src(c):
 def tally():
     rows = dict(
         db.session.query(Payment.candidate_id, func.count(Payment.id))
-        .filter(Payment.state == "COMPLETE").group_by(Payment.candidate_id).all()
+        .filter(Payment.state == "paid").group_by(Payment.candidate_id).all()
     )
     cands = Candidate.query.filter_by(active=True).all()
     total = sum(rows.get(c.id, 0) for c in cands)
@@ -93,7 +55,9 @@ def tally():
 @app.get("/")
 def index():
     results, total = tally()
-    return render_template("index.html", results=results, total=total, price=PRICE)
+    return render_template("index.html", results=results, total=total, price=PRICE,
+                           enabled=payments.is_configured(), faq=seo.FAQ,
+                           schema=seo.home_schema(results))
 
 
 @app.get("/api/results")
@@ -106,49 +70,60 @@ def api_results():
 def vote():
     data = request.get_json(silent=True) or {}
     cand = db.session.get(Candidate, data.get("candidate_id"))
-    phone = normalize_phone(data.get("phone"))
+    phone = payments.normalize_phone(data.get("phone"))
+    email = (data.get("email") or "").strip()
     if not cand or not cand.active:
         return jsonify(error="Choose a candidate."), 400
+    if not EMAIL_RE.match(email):
+        return jsonify(error="Enter a valid email address."), 400
     if not phone:
-        return jsonify(error="Enter a valid Safaricom number, e.g. 0712345678."), 400
+        return jsonify(error="Enter a valid Kenyan mobile number, e.g. 0712 345 678."), 400
+    if not payments.is_configured():
+        return jsonify(error="Voting is not available right now."), 503
+
+    # The amount always comes from the server, never from the browser.
+    p = create_vote(cand.id, phone, email, PRICE)
+    return_url = f"{Config.SITE_URL}{url_for('vote_return', ref=p.ref)}"
     try:
-        resp = intasend().collect.mpesa_stk_push(
-            phone_number=phone, email="voter@example.com", amount=PRICE,
-            narrative=f"Poll vote #{cand.id}", api_ref=f"cand-{cand.id}",
-        )
-        invoice_id = resp["invoice"]["invoice_id"]
-    except Exception as e:
-        app.logger.exception("STK push failed: %s", e)
-        return jsonify(error="Could not start the M-Pesa prompt. Try again."), 502
-    db.session.add(Payment(invoice_id=invoice_id, candidate_id=cand.id, phone=phone, amount=PRICE))
-    db.session.commit()
-    return jsonify(invoice_id=invoice_id)
-
-
-@app.get("/api/status/<invoice_id>")
-def status(invoice_id):
-    p = Payment.query.filter_by(invoice_id=invoice_id).first_or_404()
-    if p.state in ("PENDING", "PROCESSING"):
-        try:
-            r = intasend().collect.status(invoice_id=invoice_id)
-            p.state = r["invoice"]["state"]
-            db.session.commit()
-        except Exception as e:
-            app.logger.warning("status check failed: %s", e)
-    return jsonify(state=p.state)
-
-
-@app.post("/webhook/intasend")
-def webhook():
-    data = request.get_json(silent=True) or {}
-    if not CHALLENGE or data.get("challenge") != CHALLENGE:
-        abort(403)
-    p = Payment.query.filter_by(invoice_id=data.get("invoice_id")).first()
-    if p and data.get("state"):
-        p.state = data["state"]
+        url = payments.create_checkout(p, cand.name, return_url)
+    except payments.PaymentError as exc:
+        p.state, p.note = "failed", str(exc)[:300]
         db.session.commit()
-    return "", 200
+        return jsonify(error="We could not start the payment. Please try again."), 502
+    return jsonify(url=url)
 
+
+@app.get("/vote/return")
+def vote_return():
+    p = get_by_ref(request.args.get("ref", ""))
+    if not p:
+        abort(404)
+    cand = db.session.get(Candidate, p.candidate_id)
+    return render_template("vote_status.html", p=p, cand=cand)
+
+
+@app.get("/vote/status/<ref>")
+def vote_status(ref):
+    p = get_by_ref(ref)
+    if not p:
+        abort(404)
+    return jsonify(status=p.state)
+
+
+@app.post("/webhooks/intasend")
+def intasend_webhook():
+    expected = Config.INTASEND_WEBHOOK_CHALLENGE
+    if not expected:
+        return jsonify(ok=False, error="webhook not configured"), 503
+    payload = request.get_json(silent=True) or request.form.to_dict() or {}
+    if not hmac.compare_digest(str(payload.get("challenge", "")), expected):
+        return jsonify(ok=False, error="bad challenge"), 403
+    try:
+        result = payments.handle_webhook(payload)
+    except payments.PaymentError:
+        return jsonify(ok=False), 502          # IntaSend will retry
+    app.logger.info("IntaSend webhook for %s: %s", payload.get("api_ref"), result)
+    return jsonify(ok=True)
 
 
 # ───────────────────────── Admin ─────────────────────────
@@ -217,14 +192,14 @@ def admin_logout():
 @admin_required
 def admin_dashboard():
     count = lambda s: Payment.query.filter_by(state=s).count()
-    complete = Payment.query.filter_by(state="COMPLETE")
-    revenue = db.session.query(func.coalesce(func.sum(Payment.amount), 0)).filter(Payment.state == "COMPLETE").scalar()
+    complete = Payment.query.filter_by(state="paid")
+    revenue = db.session.query(func.coalesce(func.sum(Payment.amount), 0)).filter(Payment.state == "paid").scalar()
     today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     stats = {
         "revenue": revenue, "votes": complete.count(),
         "today": complete.filter(Payment.created_at >= today).count(),
-        "pending": count("PENDING") + count("PROCESSING"), "failed": count("FAILED"),
-        "voters": db.session.query(func.count(func.distinct(Payment.phone))).filter(Payment.state == "COMPLETE").scalar(),
+        "pending": count("pending"), "failed": count("failed"), "review": count("review"),
+        "voters": db.session.query(func.count(func.distinct(Payment.phone))).filter(Payment.state == "paid").scalar(),
     }
     results, total = tally()
     names = {c.id: c.name for c in Candidate.query.all()}
@@ -299,7 +274,7 @@ def payments_query():
     state, cand, term = request.args.get("state"), request.args.get("candidate", type=int), request.args.get("q", "").strip()
     if state: q = q.filter_by(state=state)
     if cand: q = q.filter_by(candidate_id=cand)
-    if term: q = q.filter(Payment.phone.contains(term) | Payment.invoice_id.contains(term))
+    if term: q = q.filter(Payment.phone.contains(term) | Payment.ref.contains(term) | Payment.invoice_id.contains(term) | Payment.email.contains(term))
     return q.order_by(Payment.created_at.desc())
 
 
@@ -317,12 +292,29 @@ def admin_payments():
 @admin_required
 def admin_payments_csv():
     out = io.StringIO(); w = csv.writer(out)
-    w.writerow(["time_utc", "invoice_id", "candidate", "phone", "amount", "state"])
+    w.writerow(["time_utc", "ref", "invoice_id", "candidate", "phone", "email", "amount", "state", "note"])
     names = {c.id: c.name for c in Candidate.query.all()}
     for p in payments_query():
-        w.writerow([p.created_at, p.invoice_id, names.get(p.candidate_id), p.phone, p.amount, p.state])
+        w.writerow([p.created_at, p.ref, p.invoice_id, names.get(p.candidate_id), p.phone, p.email, p.amount, p.state, p.note])
     return Response(out.getvalue(), mimetype="text/csv",
                     headers={"Content-Disposition": "attachment; filename=payments.csv"})
+
+
+ERRORS = {400: ("Request not accepted", "Please go back and try again."),
+          403: ("Not allowed", "You do not have access to this page."),
+          404: ("Page not found", "That page does not exist."),
+          413: ("File too large", "Photos must be 3 MB or smaller."),
+          500: ("Something went wrong", "Please try again in a moment.")}
+
+
+def _error(e):
+    code = getattr(e, "code", 500)
+    title, message = ERRORS.get(code, ERRORS[500])
+    return render_template("error.html", title=title, message=message), code
+
+
+for _c in ERRORS:
+    app.register_error_handler(_c, _error)
 
 
 @app.cli.command("init-db")

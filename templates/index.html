@@ -1,12 +1,8 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>People's Pick · Presidential Poll</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<style>
+{% include "_head.html" %}
+<style nonce="{{ csp_nonce }}">
 :root{--paper:#F7F5F0;--ink:#12261D;--green:#0B5D3B;--red:#B3261E;--line:#DAD6CB;--muted:#5C6B63;--card:#fff}
 *{box-sizing:border-box}
 body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 Inter,system-ui,sans-serif}
@@ -14,7 +10,8 @@ body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 Inter,syst
 header{border-bottom:6px solid var(--green);background:#fff}
 header .wrap{display:flex;justify-content:space-between;align-items:center;padding:16px 20px}
 .brand{font:800 20px 'Bricolage Grotesque';letter-spacing:-.01em}
-.brand i{display:inline-block;width:10px;height:10px;background:var(--red);border-radius:50%;margin-right:8px}
+.brand{display:flex;align-items:center;gap:10px;color:inherit;text-decoration:none}.brand img{display:block}
+.faq{margin:40px 0 0}.faq h2{font:800 24px 'Bricolage Grotesque';margin:0 0 12px}.faq details{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin-bottom:8px}.faq summary{font-weight:600;cursor:pointer}.faq p{margin:8px 0 0;color:var(--muted)}
 .total{color:var(--muted);font-size:14px}
 h1{font:800 clamp(34px,7vw,56px)/1.05 'Bricolage Grotesque';letter-spacing:-.03em;margin:44px 0 12px;max-width:14ch}
 .lead{color:var(--muted);max-width:52ch;margin:0 0 32px}
@@ -44,10 +41,11 @@ footer{color:var(--muted);font-size:13px;padding:36px 0 48px}
 </style>
 </head>
 <body>
-<header><div class="wrap"><div class="brand"><i></i>People's Pick</div><div class="total" id="total">{{ "{:,}".format(total) }} votes cast</div></div></header>
-<main class="wrap">
+<header><div class="wrap"><a class="brand" href="{{ url_for('index') }}"><img src="{{ url_for('static', filename='logo-mark.svg') }}" alt="" width="36" height="36">{{ site.name }}</a><div class="total" id="total">{{ "{:,}".format(total) }} votes cast</div></div></header>
+<main class="wrap" id="main">
   <h1>Who is your favourite presidential candidate?</h1>
-  <p class="lead">Cast your vote for KES {{ price }}. You will get an M-Pesa prompt on your phone. Your vote is counted once payment is confirmed.</p>
+  <p class="lead">Cast your vote for KES {{ price }}. You pay securely on IntaSend with M-Pesa or card, and your vote is counted once the payment is confirmed.</p>
+  {% if not enabled %}<p class="meta" style="color:var(--red)">Voting is temporarily closed.</p>{% endif %}
   <div id="list">
   {% for r in results %}
     <article class="cand" data-id="{{ r.id }}" style="--pc:{{ r.party_color }}">
@@ -66,19 +64,24 @@ footer{color:var(--muted);font-size:13px;padding:36px 0 48px}
     <p>No candidates yet. Add one with <code>flask add-candidate</code>.</p>
   {% endfor %}
   </div>
+  <section class="faq" aria-labelledby="faqh"><h2 id="faqh">Questions about voting</h2>
+  {% for q, a in faq %}<details><summary>{{ q }}</summary><p>{{ a }}</p></details>{% endfor %}</section>
+  <noscript><p class="meta">Turn on JavaScript to vote.</p></noscript>
   <footer>This is an informal fan poll. Paid votes are not a scientific measure of public opinion.</footer>
 </main>
 
 <dialog id="dlg">
   <h3 id="dlgTitle">Vote</h3>
-  <div class="meta">Pay KES {{ price }} with M-Pesa to cast your vote.</div>
+  <div class="meta">You will pay KES {{ price }} on IntaSend's secure page.</div>
+  <label for="email">Email (for your receipt)</label>
+  <input id="email" type="email" autocomplete="email" placeholder="you@example.com">
   <label for="phone">M-Pesa phone number</label>
   <input id="phone" type="tel" inputmode="tel" placeholder="0712 345 678" autocomplete="tel">
   <div class="msg" id="msg" role="status"></div>
-  <div class="row"><button id="pay">Pay KES {{ price }} and vote</button><button class="ghost" id="cancel">Cancel</button></div>
+  <div class="row"><button id="pay">Continue to payment</button><button class="ghost" id="cancel">Cancel</button></div>
 </dialog>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 const dlg=document.getElementById('dlg'),msg=document.getElementById('msg'),pay=document.getElementById('pay');
 let candId=null;
 const say=(t,c='')=>{msg.textContent=t;msg.className='msg '+c};
@@ -88,21 +91,16 @@ document.querySelectorAll('[data-vote]').forEach(b=>b.onclick=()=>{
 });
 document.getElementById('cancel').onclick=()=>dlg.close();
 pay.onclick=async()=>{
-  pay.disabled=true;say('Sending M-Pesa prompt…');
-  const r=await fetch('/api/vote',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({candidate_id:candId,phone:document.getElementById('phone').value})});
-  const d=await r.json();
-  if(!r.ok){say(d.error,'err');pay.disabled=false;return}
-  say('Check your phone and enter your M-Pesa PIN.');
-  poll(d.invoice_id,0);
+  pay.disabled=true;say('Preparing your payment…');
+  try{
+    const r=await fetch('/api/vote',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({candidate_id:candId,phone:document.getElementById('phone').value,email:document.getElementById('email').value})});
+    const d=await r.json();
+    if(!r.ok){say(d.error,'err');pay.disabled=false;return}
+    say('Opening the secure payment page…','ok');
+    window.location=d.url;
+  }catch(e){say('Network problem. Check your connection and try again.','err');pay.disabled=false}
 };
-async function poll(id,n){
-  if(n>40){say('We did not get a confirmation. If money was deducted, it will be reversed or counted shortly.','err');pay.disabled=false;return}
-  const s=(await (await fetch('/api/status/'+id)).json()).state;
-  if(s==='COMPLETE'){say('Payment received. Your vote is counted.','ok');refresh();setTimeout(()=>dlg.close(),1800);return}
-  if(s==='FAILED'){say('Payment failed or was cancelled. Try again.','err');pay.disabled=false;return}
-  setTimeout(()=>poll(id,n+1),3000);
-}
 async function refresh(){
   const d=await (await fetch('/api/results')).json();
   document.getElementById('total').textContent=d.total.toLocaleString()+' votes cast';

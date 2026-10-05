@@ -6,7 +6,8 @@
 <div class="box"><small>Votes today (UTC)</small><div>{{ stats.today }}</div></div>
 <div class="box"><small>Unique phones</small><div>{{ stats.voters }}</div></div>
 <div class="box"><small>Pending</small><div>{{ stats.pending }}</div></div>
-<div class="box"><small>Failed</small><div>{{ stats.failed }}</div></div></div>
+<div class="box"><small>Failed</small><div>{{ stats.failed }}</div></div>
+<div class="box"><small>Needs review</small><div>{{ stats.review }}</div></div></div>
 <h2>Standings</h2>
 <div class="scroll"><table><tr><th>Candidate</th><th>Party</th><th>Votes</th><th>Share</th></tr>
 {% for r in results %}<tr><td>{{ r.name }}</td><td>{{ r.party }}</td><td>{{ r.votes }}</td><td>{{ r.pct }}%</td></tr>{% endfor %}</table></div>

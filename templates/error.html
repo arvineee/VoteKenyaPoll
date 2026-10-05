@@ -1,0 +1,7 @@
+<!doctype html><html lang="en"><head>
+{% set page_title = title ~ " · " ~ site.name %}{% set page_robots = "noindex, nofollow" %}
+{% include "_head.html" %}
+<style nonce="{{ csp_nonce }}">body{margin:0;background:#F7F5F0;color:#12261D;font:16px/1.55 Inter,system-ui,sans-serif}
+.b{max-width:440px;margin:14vh auto;padding:0 20px;text-align:center}h1{font:800 32px 'Bricolage Grotesque';margin:12px 0 6px}p{color:#5C6B63}
+a{display:inline-block;background:#0B5D3B;color:#fff;text-decoration:none;font-weight:600;padding:11px 18px;border-radius:8px}</style></head>
+<body><div class="b"><img src="{{ url_for('static', filename='logo-mark.svg') }}" alt="" width="56" height="56"><h1>{{ title }}</h1><p>{{ message }}</p><a href="{{ url_for('index') }}">Back to the poll</a></div></body></html>
