@@ -8,6 +8,7 @@ from sqlalchemy import func
 from werkzeug.utils import secure_filename
 
 import payments, security, seo
+from schema import upgrade_schema
 from config import Config
 from models import db, Candidate, Payment, create_vote, get_by_ref
 
@@ -204,7 +205,8 @@ def admin_dashboard():
     results, total = tally()
     names = {c.id: c.name for c in Candidate.query.all()}
     recent = Payment.query.order_by(Payment.created_at.desc()).limit(10).all()
-    return render_template("admin_dashboard.html", stats=stats, results=results, recent=recent, names=names)
+    return render_template("admin_dashboard.html", stats=stats, results=results, recent=recent, names=names,
+                           problem=payments.config_problem())
 
 
 @app.route("/admin/candidates", methods=["GET", "POST"])
@@ -317,6 +319,18 @@ for _c in ERRORS:
     app.register_error_handler(_c, _error)
 
 
+@app.cli.command("check-payments")
+def check_payments():
+    """Check the IntaSend settings for common mistakes."""
+    mode = "sandbox (test)" if Config.INTASEND_TEST_MODE else "live"
+    print("Mode:", mode)
+    print("Secret key starts with:", (Config.INTASEND_SECRET_KEY or "-")[:18])
+    print("Publishable key starts with:", (Config.INTASEND_PUBLISHABLE_KEY or "-")[:16])
+    print("Site URL:", Config.SITE_URL)
+    print("Webhook challenge set:", bool(Config.INTASEND_WEBHOOK_CHALLENGE))
+    print("Problem:", payments.config_problem() or "none found")
+
+
 @app.cli.command("init-db")
 def init_db():
     db.create_all()
@@ -350,6 +364,8 @@ def set_photo():
 
 with app.app_context():
     db.create_all()
+    upgrade_schema(db)
 
 if __name__ == "__main__":
     app.run(debug=True)
+

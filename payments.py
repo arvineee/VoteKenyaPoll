@@ -23,6 +23,24 @@ def is_configured():
     return bool(cfg.INTASEND_SECRET_KEY and cfg.INTASEND_PUBLISHABLE_KEY)
 
 
+def config_problem():
+    """Plain-English description of an obvious key/mode mistake, or None if the settings look right."""
+    sec, pub = cfg.INTASEND_SECRET_KEY, cfg.INTASEND_PUBLISHABLE_KEY
+    if not (sec and pub):
+        return "IntaSend keys are missing. Set INTASEND_SECRET_KEY and INTASEND_PUBLISHABLE_KEY."
+    if sec != sec.strip() or pub != pub.strip() or any(q in sec + pub for q in "\"'"):
+        return "An IntaSend key has a space or quote mark around it. Remove it in .env."
+    if not sec.startswith("ISSecretKey_"):
+        return "INTASEND_SECRET_KEY should start with ISSecretKey_ (did you paste the publishable key?)."
+    if not pub.startswith("ISPubKey_"):
+        return "INTASEND_PUBLISHABLE_KEY should start with ISPubKey_ (did you paste the secret key?)."
+    if cfg.INTASEND_TEST_MODE and not ("_test_" in sec and "_test_" in pub):
+        return "INTASEND_TEST_MODE is true but the keys are live keys. Use sandbox keys, or set INTASEND_TEST_MODE=false."
+    if not cfg.INTASEND_TEST_MODE and not ("_live_" in sec and "_live_" in pub):
+        return "INTASEND_TEST_MODE is false but the keys are sandbox keys. Use live keys, or set INTASEND_TEST_MODE=true."
+    return None
+
+
 def normalize_phone(raw):
     """'0712 345 678' / '+254712345678' / '712345678' -> '254712345678', or None if invalid."""
     digits = re.sub(r"\D", "", raw or "")
@@ -57,7 +75,8 @@ def create_checkout(payment, candidate_name, redirect_url):
             first_name="Voter", last_name="",
         )
     except Exception as exc:
-        current_app.logger.exception("IntaSend checkout failed for %s", payment.ref)
+        current_app.logger.exception("IntaSend checkout failed for %s (config check: %s)",
+                                     payment.ref, config_problem() or "keys and mode look consistent")
         raise PaymentError(f"IntaSend checkout failed: {exc}") from exc
     url = (resp or {}).get("url")
     if not url:
@@ -107,3 +126,4 @@ def handle_webhook(payload):
         models.settle(ref, "failed", invoice_id, str(reason))
         return "failed"
     return f"pending ({state or 'unknown'})"
+

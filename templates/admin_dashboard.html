@@ -1,5 +1,6 @@
 {% extends "admin_base.html" %}{% block body %}
 <h1>Overview</h1>
+{% if problem %}<div class="flash err">Payment settings: {{ problem }}</div>{% endif %}
 <div class="grid">
 <div class="box"><small>Revenue (KES)</small><div>{{ "{:,}".format(stats.revenue) }}</div></div>
 <div class="box"><small>Paid votes</small><div>{{ "{:,}".format(stats.votes) }}</div></div>
