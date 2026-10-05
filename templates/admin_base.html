@@ -1,0 +1,31 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin · People's Pick</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#F7F5F0;--ink:#12261D;--green:#0B5D3B;--red:#B3261E;--line:#DAD6CB;--muted:#5C6B63}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 Inter,system-ui,sans-serif}
+nav{background:#fff;border-bottom:6px solid var(--green)}nav .in{max-width:1000px;margin:auto;padding:12px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav b{font:800 18px 'Bricolage Grotesque';margin-right:auto}nav a{color:var(--ink);text-decoration:none;font-weight:600}nav a.on{color:var(--green);text-decoration:underline;text-underline-offset:6px}
+main{max-width:1000px;margin:auto;padding:24px 20px 60px}h1{font:800 28px 'Bricolage Grotesque';margin:0 0 18px}h2{font:700 18px 'Bricolage Grotesque';margin:28px 0 10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.box{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px 16px}.box small{color:var(--muted)}.box div{font:800 26px 'Bricolage Grotesque'}
+table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);font-size:14px}th{background:#EFEBE1}.scroll{overflow-x:auto}
+input,select{padding:9px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;max-width:100%}
+label{display:block;font-weight:600;margin:12px 0 4px}
+button,.btn{font:600 14px Inter;border:0;border-radius:8px;padding:9px 14px;cursor:pointer;background:var(--green);color:#fff;text-decoration:none;display:inline-block}
+.btn.ghost,button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}button.danger{background:var(--red)}
+button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:3px solid var(--red);outline-offset:2px}
+.flash{padding:10px 14px;border-radius:8px;margin-bottom:14px;font-weight:600}.flash.ok{background:#DDF0E5;color:var(--green)}.flash.err{background:#F8DEDB;color:var(--red)}
+.av{width:44px;height:44px;border-radius:50%;object-fit:cover;background:#ECE9E0;display:grid;place-items:center;font-weight:800;border:3px solid var(--pc)}
+.tag{padding:2px 8px;border-radius:99px;font-size:12px;font-weight:600;background:#ECE9E0}.tag.COMPLETE{background:#DDF0E5;color:var(--green)}.tag.FAILED{background:#F8DEDB;color:var(--red)}
+.card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:16px 18px;max-width:520px}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+</style></head><body>
+{% if session.admin %}<nav><div class="in"><b>People's Pick admin</b>
+<a href="{{ url_for('admin_dashboard') }}" class="{{ 'on' if request.endpoint=='admin_dashboard' }}">Overview</a>
+<a href="{{ url_for('admin_candidates') }}" class="{{ 'on' if request.endpoint in ('admin_candidates','admin_candidate_edit') }}">Candidates</a>
+<a href="{{ url_for('admin_payments') }}" class="{{ 'on' if request.endpoint=='admin_payments' }}">Payments</a>
+<a href="{{ url_for('index') }}">View site</a>
+<form method="post" action="{{ url_for('admin_logout') }}" style="margin:0"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="ghost">Log out</button></form></div></nav>{% endif %}
+<main>{% with m=get_flashed_messages(with_categories=true) %}{% for c,t in m %}<div class="flash {{ c }}">{{ t }}</div>{% endfor %}{% endwith %}
+{% block body %}{% endblock %}</main></body></html>

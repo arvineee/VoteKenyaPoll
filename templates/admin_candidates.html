@@ -1,0 +1,22 @@
+{% extends "admin_base.html" %}{% block body %}
+<h1>Candidates</h1>
+<div class="scroll"><table><tr><th></th><th>Name</th><th>Party</th><th>Status</th><th></th></tr>
+{% for c in cands %}<tr style="--pc:{{ c.party_color }}">
+<td>{% if c.photo %}<img class="av" src="{{ photo_src(c) }}" alt="">{% else %}<div class="av">{{ c.name[:1] }}</div>{% endif %}</td>
+<td>{{ c.name }}<br><small>{{ c.slogan }}</small></td><td>{{ c.party }}</td><td>{{ 'Visible' if c.active else 'Hidden' }}</td>
+<td class="row"><a class="btn ghost" href="{{ url_for('admin_candidate_edit', cid=c.id) }}">Edit</a>
+<form method="post" action="{{ url_for('admin_candidate_delete', cid=c.id) }}" onsubmit="return confirm('Remove {{ c.name }}?')" style="margin:0">
+<input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="danger">Remove</button></form></td></tr>
+{% else %}<tr><td colspan="5">No candidates yet. Add the first one below.</td></tr>{% endfor %}</table></div>
+
+<h2>{{ 'Edit ' + edit.name if edit else 'Add a candidate' }}</h2>
+<form class="card" method="post" enctype="multipart/form-data" action="{{ url_for('admin_candidate_edit', cid=edit.id) if edit else url_for('admin_candidates') }}">
+<input type="hidden" name="csrf" value="{{ csrf_token }}">
+<label for="n">Name</label><input id="n" name="name" required style="width:100%" value="{{ edit.name if edit }}">
+<label for="p">Party</label><input id="p" name="party" style="width:100%" value="{{ edit.party if edit }}">
+<label for="s">Slogan</label><input id="s" name="slogan" style="width:100%" value="{{ edit.slogan if edit }}">
+<label for="c">Party colour</label><input id="c" type="color" name="party_color" value="{{ edit.party_color if edit else '#0B5D3B' }}">
+<label for="f">Photo (PNG, JPG or WEBP, up to 3 MB)</label><input id="f" type="file" name="photo_file" accept="image/png,image/jpeg,image/webp">
+<label for="u">Or photo link</label><input id="u" name="photo_url" placeholder="https://..." style="width:100%" value="{{ edit.photo if edit and edit.photo.startswith('http') }}">
+{% if edit %}<label><input type="checkbox" name="active" {{ 'checked' if edit.active }}> Show on the voting page</label>{% endif %}
+<p class="row"><button>{{ 'Save changes' if edit else 'Add candidate' }}</button>{% if edit %}<a class="btn ghost" href="{{ url_for('admin_candidates') }}">Cancel</a>{% endif %}</p></form>{% endblock %}

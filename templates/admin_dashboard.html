@@ -1,0 +1,17 @@
+{% extends "admin_base.html" %}{% block body %}
+<h1>Overview</h1>
+<div class="grid">
+<div class="box"><small>Revenue (KES)</small><div>{{ "{:,}".format(stats.revenue) }}</div></div>
+<div class="box"><small>Paid votes</small><div>{{ "{:,}".format(stats.votes) }}</div></div>
+<div class="box"><small>Votes today (UTC)</small><div>{{ stats.today }}</div></div>
+<div class="box"><small>Unique phones</small><div>{{ stats.voters }}</div></div>
+<div class="box"><small>Pending</small><div>{{ stats.pending }}</div></div>
+<div class="box"><small>Failed</small><div>{{ stats.failed }}</div></div></div>
+<h2>Standings</h2>
+<div class="scroll"><table><tr><th>Candidate</th><th>Party</th><th>Votes</th><th>Share</th></tr>
+{% for r in results %}<tr><td>{{ r.name }}</td><td>{{ r.party }}</td><td>{{ r.votes }}</td><td>{{ r.pct }}%</td></tr>{% endfor %}</table></div>
+<h2>Latest payments</h2>
+<div class="scroll"><table><tr><th>Time (UTC)</th><th>Candidate</th><th>Phone</th><th>State</th></tr>
+{% for p in recent %}<tr><td>{{ p.created_at.strftime('%d %b %H:%M') }}</td><td>{{ names.get(p.candidate_id) }}</td><td>{{ p.phone }}</td><td><span class="tag {{ p.state }}">{{ p.state }}</span></td></tr>
+{% else %}<tr><td colspan="4">No payments yet.</td></tr>{% endfor %}</table></div>
+<p><a class="btn ghost" href="{{ url_for('admin_payments') }}">All payments</a></p>{% endblock %}

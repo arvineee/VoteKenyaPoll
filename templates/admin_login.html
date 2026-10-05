@@ -1,0 +1,6 @@
+{% extends "admin_base.html" %}{% block body %}
+<div class="card" style="margin:60px auto"><h1>Admin login</h1>
+{% if disabled %}<p class="flash err">Set ADMIN_PASSWORD in your .env file to enable the admin area.</p>{% else %}
+<form method="post"><input type="hidden" name="csrf" value="{{ csrf_token }}">
+<label for="pw">Password</label><input id="pw" type="password" name="password" required autofocus style="width:100%">
+<p><button>Log in</button></p></form>{% endif %}</div>{% endblock %}

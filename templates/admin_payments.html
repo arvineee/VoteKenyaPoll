@@ -1,0 +1,13 @@
+{% extends "admin_base.html" %}{% block body %}
+<h1>Payments</h1>
+<form method="get" class="row" style="margin-bottom:14px">
+<input name="q" placeholder="Phone or invoice" value="{{ args.get('q','') }}">
+<select name="state"><option value="">All states</option>{% for s in ['COMPLETE','PENDING','PROCESSING','FAILED'] %}<option {{ 'selected' if args.get('state')==s }}>{{ s }}</option>{% endfor %}</select>
+<select name="candidate"><option value="">All candidates</option>{% for id,n in names.items() %}<option value="{{ id }}" {{ 'selected' if args.get('candidate')|string==id|string }}>{{ n }}</option>{% endfor %}</select>
+<button>Filter</button><a class="btn ghost" href="{{ url_for('admin_payments_csv', **qs) }}">Download CSV</a></form>
+<div class="scroll"><table><tr><th>Time (UTC)</th><th>Invoice</th><th>Candidate</th><th>Phone</th><th>KES</th><th>State</th></tr>
+{% for p in pg.items %}<tr><td>{{ p.created_at.strftime('%d %b %Y %H:%M') }}</td><td>{{ p.invoice_id }}</td><td>{{ names.get(p.candidate_id) }}</td><td>{{ p.phone }}</td><td>{{ p.amount }}</td><td><span class="tag {{ p.state }}">{{ p.state }}</span></td></tr>
+{% else %}<tr><td colspan="6">Nothing matches.</td></tr>{% endfor %}</table></div>
+<p class="row">{% if pg.has_prev %}<a class="btn ghost" href="{{ url_for('admin_payments', page=pg.prev_num, **qs) }}">Newer</a>{% endif %}
+<span>Page {{ pg.page }} of {{ pg.pages or 1 }}</span>
+{% if pg.has_next %}<a class="btn ghost" href="{{ url_for('admin_payments', page=pg.next_num, **qs) }}">Older</a>{% endif %}</p>{% endblock %}
