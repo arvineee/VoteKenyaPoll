@@ -7,7 +7,7 @@ from flask import current_app, send_from_directory
 from config import Config as cfg
 
 SITE = cfg.SITE_URL
-TITLE = f"{cfg.SITE_NAME}: vote for your favourite presidential candidate (KES {cfg.VOTE_PRICE_KES})"
+TITLE = f"{cfg.SITE_NAME}: vote for your favourite presidential candidate "
 OG_IMAGE = f"{SITE}/static/og-image.png"
 
 FAQ = [
